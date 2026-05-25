@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zoomie Console</title>
+  <meta name="description" content="Management console for Zoomie IoT pet devices. Monitor status, dispense food, and issue locking commands using web speech.">
+
+  <!-- Tailwind CSS v3 Play CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- FontAwesome CDN for premium icons -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+  <!-- SweetAlert2 CDN for modern alerts -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <!-- Supabase JS client CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Google Fonts: Poppins -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Poppins', 'sans-serif'],
+          },
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Prevent overall page scroll and lock layout inside viewport */
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      background-color: #fafbfc;
+      font-family: 'Poppins', sans-serif;
+    }
+
+    /* Scrollbar Styling for Chat Section */
+    .chat-scrollbar::-webkit-scrollbar {
+      width: 4px;
+    }
+    .chat-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .chat-scrollbar::-webkit-scrollbar-thumb {
+      background: #e2e8f0;
+      border-radius: 2px;
+    }
+    .chat-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #cbd5e1;
+    }
+
+    /* Subtle keyframe animations */
+    @keyframes pulse-ring {
+      0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+      }
+      70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+      }
+      100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+      }
+    }
+    .mic-active-pulse {
+      animation: pulse-ring 2s infinite;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    .animate-slide-in {
+      animation: slideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+  </style>
+</head>
+
+<body class="text-slate-800 flex flex-col antialiased">
+
+  <!-- Main Viewport-Locked Wrapper -->
+  <div class="flex-1 flex flex-col h-full overflow-hidden p-4 md:p-6 lg:p-8 max-w-6xl w-full mx-auto space-y-6">
+    
+    <!-- Top Header -->
+    <header class="flex items-center justify-between flex-shrink-0">
+      <div class="flex items-center space-x-2">
+        <span class="text-2xl font-bold tracking-tight text-slate-900">zoomie<span class="text-blue-600">.</span></span>
+        <span class="text-xs font-semibold text-slate-400 border-l border-slate-200 pl-2 mt-1 uppercase tracking-wider">Console</span>
+      </div>
+      <div class="flex items-center space-x-2">
+        <!-- Quiet connection state indicator -->
+        <div class="flex items-center space-x-1.5 text-xs font-medium text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200/60">
+          <i class="fas fa-signal text-[10px] text-slate-400"></i>
+          <span>Live Link</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Bento Layout Grid -->
+    <main class="flex-1 flex flex-col md:grid md:grid-cols-12 gap-6 min-h-0 overflow-hidden">
+      
+      <!-- Left Column: Status and Quick Controls (Spans 4 columns) -->
+      <div class="grid grid-cols-2 md:flex md:flex-col gap-6 md:col-span-4 flex-shrink-0 md:h-full min-h-0">
+        
+        <!-- Status Card (Bento Card) -->
+        <section id="status-card" class="bg-white border border-slate-200 rounded-3xl p-5 md:p-6 shadow-[0_4px_20px_rgba(0,0,0,0.02)] flex flex-col justify-between transition-all duration-300 min-w-0">
+          <div class="space-y-4">
+            <span class="text-[10px] font-bold tracking-wider text-slate-400 uppercase">System Status</span>
+            
+            <div class="py-2">
+              <span id="status-display" class="text-2xl font-bold text-slate-900 tracking-tight transition-all duration-200">
+                ACTIVE
+              </span>
+              <p id="status-message" class="text-xs text-slate-500 mt-1 leading-relaxed">
+                Dispenser is active. Commands can be issued via voice or text.
+              </p>
+            </div>
+          </div>
+
+          <!-- Modern Switch Toggle Button -->
+          <div class="flex items-center justify-between border-t border-slate-100 pt-4 mt-4">
+            <span class="text-xs font-semibold text-slate-600">Dispenser Lock</span>
+            <button onclick="toggleLockState()" id="lock-switch" class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none bg-slate-200" role="switch" aria-checked="false">
+              <span id="lock-switch-thumb" class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out translate-x-0"></span>
+            </button>
+          </div>
+        </section>
+
+        <!-- Quick Controls (Bento Card) -->
+        <section class="bg-white border border-slate-200 rounded-3xl p-5 md:p-6 shadow-[0_4px_20px_rgba(0,0,0,0.02)] flex-1 flex flex-col justify-between min-h-0 min-w-0">
+          <div class="flex-1 flex flex-col justify-center md:justify-start">
+            <h3 class="hidden md:block text-[10px] font-bold tracking-wider text-slate-400 uppercase mb-4">Quick Command Actions</h3>
+            
+            <div class="space-y-3">
+              <!-- Dispense Hero Action -->
+              <button onclick="triggerQuickCommand('dispense')" class="w-full flex items-center justify-between py-3.5 px-4 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-medium transition-all duration-200 shadow-sm active:scale-[0.98]">
+                <div class="flex items-center space-x-3">
+                  <i class="fas fa-utensils text-sm text-slate-300"></i>
+                  <span class="text-xs font-semibold">Dispense Food</span>
+                </div>
+                <i class="fas fa-chevron-right text-[10px] text-slate-400"></i>
+              </button>
+
+              <!-- Snack Action -->
+              <button onclick="triggerQuickCommand('snack')" class="w-full flex items-center justify-between py-3.5 px-4 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 font-medium transition-all duration-200 shadow-[0_2px_8px_rgba(0,0,0,0.02)] active:scale-[0.98]">
+                <div class="flex items-center space-x-3">
+                  <i class="fas fa-cookie-bite text-sm text-slate-500"></i>
+                  <span class="text-xs font-semibold">Feed Snack</span>
+                </div>
+                <i class="fas fa-chevron-right text-[10px] text-slate-400"></i>
+              </button>
+            </div>
+          </div>
+          
+          <button onclick="triggerQuickCommand('help')" class="w-full mt-4 py-2 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 font-semibold text-[10px] md:text-xs transition-colors duration-200 border border-slate-200 flex items-center justify-center space-x-1.5">
+            <i class="fas fa-circle-question text-xs"></i>
+            <span>Command Options</span>
+          </button>
+        </section>
+
+      </div>
+
+      <!-- Right Column: Chat Console Dashboard (Spans 8 columns) -->
+      <div class="flex-1 md:col-span-8 flex flex-col bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-[0_4px_30px_rgba(0,0,0,0.015)] min-h-0 md:h-full">
+        
+        <!-- Console Header -->
+        <div id="console-header" class="px-6 py-4 bg-white border-b border-slate-150 flex items-center justify-between flex-shrink-0 transition-colors duration-300">
+          <div class="flex items-center space-x-2.5">
+            <span class="text-xs font-bold text-slate-900 uppercase tracking-wider">Console Logs</span>
+          </div>
+          <div id="mic-status" class="text-[10px] text-slate-400 flex items-center font-bold uppercase tracking-wider">
+            <i class="fas fa-circle text-green-500 text-[7px] mr-1.5"></i> Ready
+          </div>
+        </div>
+
+        <!-- Chat messages container (The only scrollable section) -->
+        <div id="chat-messages" class="chat-scrollbar flex-1 overflow-y-auto p-6 space-y-5 bg-[#fafbfc] flex flex-col min-h-0">
+          <!-- Chat messages dynamically inserted here -->
+        </div>
+
+        <!-- Input Control Panel -->
+        <div class="p-4 bg-white flex-shrink-0 border-t border-slate-100">
+          <div class="flex items-center space-x-3 bg-slate-100 rounded-2xl p-1 px-2 border border-slate-200">
+            
+            <!-- Voice mic activator button -->
+            <button id="mic-btn" onclick="toggleSpeech()" class="flex items-center justify-center w-10 h-10 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-200/50 transition-all duration-200 focus:outline-none flex-shrink-0" title="Click to speak">
+              <i id="mic-icon" class="fas fa-microphone text-base"></i>
+            </button>
+
+            <!-- Text input bar -->
+            <input id="chat-input" type="text" placeholder="Type a command (e.g. dispense, lock)..." class="w-full text-xs bg-transparent focus:outline-none py-3 px-2 placeholder-slate-400 text-slate-800 font-medium">
+            
+            <!-- Send button -->
+            <button onclick="submitTextCommand()" class="w-10 h-10 rounded-xl bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-center transition-all duration-200 flex-shrink-0 active:scale-95">
+              <i class="fas fa-arrow-up text-xs"></i>
+            </button>
+
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+  </div>
+
+  <!-- JavaScript Program Logic -->
+  <script>
+    // SUPABASE CONFIGURATION PLACEHOLDERS
+    const SUPABASE_URL = "https://ixbyqglvmixtpctohxsx.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml4YnlxZ2x2bWl4dHBjdG9oeHN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2MjcxMDYsImV4cCI6MjA5NTIwMzEwNn0.R6BgbZiWGOYHwR1-0TbtjROVNeFoEwg2Z0s6q5bDlwA";
+
+    // Application state variables
+    let isLocked = false;
+    let supabaseClientInstance = null;
+
+    // Browser Web Speech API setup
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+    let isListening = false;
+
+    if (SpeechRecognition) {
+      recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.lang = 'en-US';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        isListening = true;
+        updateMicUI(true);
+      };
+
+      recognition.onend = () => {
+        isListening = false;
+        updateMicUI(false);
+      };
+
+      recognition.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        isListening = false;
+        updateMicUI(false);
+        
+        if (event.error !== 'no-speech') {
+          let errorTitle = `Voice Error: ${event.error}`;
+          let errorText = '';
+          
+          if (event.error === 'network') {
+            errorTitle = 'Voice Recognition: Network Error';
+            errorText = 'The browser speech API could not reach Google\'s servers. If you are opening this file directly (file://), Chrome often blocks Speech API requests. Serve the file using a local web server (http://localhost) to resolve this.';
+          } else if (event.error === 'not-allowed') {
+            errorTitle = 'Voice Recognition: Permission Denied';
+            errorText = 'Microphone access was blocked. Note: Chrome requires you to grant permission every time when opening local files (file://). Serving it via http://localhost allows Chrome to remember your selection.';
+          }
+          
+          Swal.fire({
+            icon: 'warning',
+            title: errorTitle,
+            text: errorText || `Browser SpeechRecognition reported: ${event.error}`,
+            confirmButtonColor: '#0f172a'
+          });
+        }
+      };
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript && transcript.trim()) {
+          handleCommand(transcript);
+        }
+      };
+    }
+
+    // Initialize application on DOM load
+    document.addEventListener('DOMContentLoaded', () => {
+      updateLockUI();
+      // Show welcome instructions
+      addMessage('system', 'Welcome to Zoomie Dispenser Chat Panel! Type a command below or click the microphone to speak. Say <strong>"help"</strong> to view available commands.');
+    });
+
+    // Toggle speech engine
+    function toggleSpeech() {
+      if (!recognition) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Speech recognition unsupported',
+          text: 'This browser does not support the Web Speech API. Please use Chrome, Edge, or Safari.',
+          confirmButtonColor: '#0f172a'
+        });
+        return;
+      }
+
+      if (isListening) {
+        recognition.stop();
+      } else {
+        try {
+          recognition.start();
+        } catch (err) {
+          console.error('Failed to start speech:', err);
+        }
+      }
+    }
+
+    // Update voice microphone style elements
+    function updateMicUI(listening) {
+      const micBtn = document.getElementById('mic-btn');
+      const micIcon = document.getElementById('mic-icon');
+      const micStatus = document.getElementById('mic-status');
+      const header = document.getElementById('console-header');
+
+      if (listening) {
+        micBtn.classList.add('mic-active-pulse');
+        micBtn.classList.remove('text-slate-600', 'hover:bg-slate-200/50');
+        micBtn.classList.add('text-white', 'bg-red-500', 'hover:bg-red-600');
+        micIcon.className = 'fas fa-stop text-sm';
+        
+        micStatus.innerHTML = '<span class="flex h-1.5 w-1.5 relative mr-1.5"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span></span> LISTENING';
+        micStatus.className = 'text-[10px] text-red-500 flex items-center font-bold tracking-wider';
+        
+        header.classList.add('bg-red-50/30');
+      } else {
+        micBtn.classList.remove('mic-active-pulse', 'text-white', 'bg-red-500', 'hover:bg-red-600');
+        micBtn.classList.add('text-slate-600', 'hover:bg-slate-200/50');
+        micIcon.className = 'fas fa-microphone text-base';
+        
+        micStatus.innerHTML = '<i class="fas fa-circle text-green-500 text-[7px] mr-1.5"></i> READY';
+        micStatus.className = 'text-[10px] text-slate-400 flex items-center font-bold tracking-wider';
+        
+        header.classList.remove('bg-red-50/30');
+      }
+    }
+
+    // Toggle locked variable state directly
+    function toggleLockState() {
+      if (isLocked) {
+        handleCommand('unlock');
+      } else {
+        handleCommand('lock');
+      }
+    }
+
+    // Sync visual card elements with the lock state
+    function updateLockUI() {
+      const switchBtn = document.getElementById('lock-switch');
+      const switchThumb = document.getElementById('lock-switch-thumb');
+      const statusDisplay = document.getElementById('status-display');
+      const statusMessage = document.getElementById('status-message');
+
+      if (isLocked) {
+        switchBtn.classList.remove('bg-slate-200');
+        switchBtn.classList.add('bg-red-500');
+        switchThumb.classList.remove('translate-x-0');
+        switchThumb.classList.add('translate-x-5');
+        switchBtn.setAttribute('aria-checked', 'true');
+
+        statusDisplay.innerText = 'LOCKED';
+        statusDisplay.className = 'text-2xl font-bold text-red-600 tracking-tight';
+        statusMessage.innerText = 'Dispenser is locked. Command actions are disabled.';
+      } else {
+        switchBtn.classList.remove('bg-red-500');
+        switchBtn.classList.add('bg-slate-200');
+        switchThumb.classList.remove('translate-x-5');
+        switchThumb.classList.add('translate-x-0');
+        switchBtn.setAttribute('aria-checked', 'false');
+
+        statusDisplay.innerText = 'ACTIVE';
+        statusDisplay.className = 'text-2xl font-bold text-slate-900 tracking-tight';
+        statusMessage.innerText = 'Dispenser is active. Commands can be issued via voice or text.';
+      }
+    }
+
+    // Add chat node to window
+    function addMessage(sender, text) {
+      const chatMessages = document.getElementById('chat-messages');
+      const msgDiv = document.createElement('div');
+      msgDiv.className = `flex flex-col ${sender === 'user' ? 'items-end' : 'items-start'} animate-slide-in mb-4`;
+
+      const label = document.createElement('span');
+      label.className = 'text-[9px] text-slate-400 font-bold mb-1 px-1.5 uppercase tracking-wider';
+      label.innerText = sender === 'user' ? 'User' : 'System';
+
+      const bubble = document.createElement('div');
+      if (sender === 'user') {
+        bubble.className = 'bg-slate-950 text-white rounded-2xl rounded-tr-none px-4 py-2.5 text-xs shadow-sm max-w-[80%] leading-relaxed font-normal';
+      } else {
+        bubble.className = 'bg-white border border-slate-200 text-slate-700 rounded-2xl rounded-tl-none px-4 py-2.5 text-xs shadow-sm max-w-[80%] leading-relaxed';
+      }
+      bubble.innerHTML = text;
+
+      msgDiv.appendChild(label);
+      msgDiv.appendChild(bubble);
+      chatMessages.appendChild(msgDiv);
+
+      // Auto scroll to bottom
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    // Parse input from Quick Buttons
+    function triggerQuickCommand(cmd) {
+      handleCommand(cmd);
+    }
+
+    // Parse input from Input Text Bar
+    function submitTextCommand() {
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (text) {
+        input.value = '';
+        handleCommand(text);
+      }
+    }
+
+    // Handle keypress inside text input
+    document.getElementById('chat-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        submitTextCommand();
+      }
+    });
+
+    // Central command pipeline
+    async function handleCommand(cmd) {
+      // Normalize command string: trim, lowercase, remove basic punctuation
+      const cleanCmd = cmd.trim().toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "");
+      
+      // Print user message to console
+      addMessage('user', cmd);
+
+      // 1. HELP command
+      if (cleanCmd === 'help') {
+        addMessage('system', 'Available commands:<br>• <strong class="text-slate-900">dispense</strong> - Dispatch a regular pet feeding<br>• <strong class="text-slate-900">snack</strong> - Drop a quick snack treat<br>• <strong class="text-slate-900">lock</strong> - Disable dispenser operation<br>• <strong class="text-slate-900">unlock</strong> - Enable dispenser operation');
+      }
+      
+      // 2. LOCK command
+      else if (cleanCmd === 'lock') {
+        isLocked = true;
+        updateLockUI();
+        Swal.fire({
+          icon: 'success',
+          title: 'Dispenser Locked',
+          text: 'The dispenser has been successfully locked.',
+          confirmButtonColor: '#0f172a',
+          timer: 2000
+        });
+        addMessage('system', 'System locked.');
+      }
+      
+      // 3. UNLOCK command
+      else if (cleanCmd === 'unlock') {
+        isLocked = false;
+        updateLockUI();
+        Swal.fire({
+          icon: 'success',
+          title: 'Dispenser Unlocked',
+          text: 'The dispenser has been successfully unlocked.',
+          confirmButtonColor: '#0f172a',
+          timer: 2000
+        });
+        addMessage('system', 'System unlocked.');
+      }
+      
+      // 4. ACTION commands
+      else if (cleanCmd === 'dispense' || cleanCmd === 'snack') {
+        if (isLocked) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Dispenser Locked',
+            text: 'Action blocked! The dispenser is locked.',
+            confirmButtonColor: '#dc2626'
+          });
+          addMessage('system', `<span class="text-red-500 font-bold">Blocked:</span> Dispenser is currently locked. Unable to process command: <strong>${cleanCmd}</strong>.`);
+        } else {
+          await sendCommandToSupabase(cleanCmd);
+        }
+      }
+      
+      // 5. UNRECOGNIZED command
+      else {
+        addMessage('system', `Command <strong>"${cmd}"</strong> not recognized. Say <strong>"help"</strong> to show valid options.`);
+      }
+    }
+
+    // Submit Action to Supabase Realtime Database
+    async function sendCommandToSupabase(commandString) {
+      addMessage('system', `Sending command <strong>"${commandString}"</strong> to Supabase...`);
+
+      // Verify that URL and Key are not original mock strings
+      const isDefaultUrl = !SUPABASE_URL || SUPABASE_URL.includes('your-supabase-url') || SUPABASE_URL === 'YOUR_SUPABASE_URL';
+      const isDefaultKey = !SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes('your-supabase-anon-key') || SUPABASE_ANON_KEY === 'YOUR_SUPABASE_ANON_KEY';
+
+      if (isDefaultUrl || isDefaultKey) {
+        // Mock success message with validation warning for testing
+        setTimeout(() => {
+          addMessage('system', `<span class="text-amber-600 font-bold">Warning:</span> Command <strong>"${commandString}"</strong> processed, but DB write was skipped (using placeholder credentials).`);
+        }, 1000);
+        return;
+      }
+
+      try {
+        // Initialize client on request
+        if (!supabaseClientInstance) {
+          supabaseClientInstance = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        }
+
+        // Insert command
+        const { data, error } = await supabaseClientInstance
+          .from('commands')
+          .insert([{ command_type: commandString }]);
+
+        if (error) throw error;
+
+        addMessage('system', `Success: Transmitted command <strong>"${commandString}"</strong> to dispenser database.`);
+
+      } catch (err) {
+        console.error('Supabase integration error:', err);
+        addMessage('system', `<span class="text-red-500 font-bold">Error:</span> Database transaction failed for <strong>"${commandString}"</strong>: ${err.message || err}`);
+      }
+    }
+  </script>
+</body>
+
+</html>
