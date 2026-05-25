@@ -123,27 +123,24 @@
       <!-- Left Column: Status and Quick Controls (Spans 4 columns) -->
       <div class="grid grid-cols-2 md:flex md:flex-col gap-6 md:col-span-4 flex-shrink-0 md:h-full min-h-0">
         
-        <!-- Status Card (Bento Card) -->
-        <section id="status-card" class="bg-white border border-slate-200 rounded-3xl p-5 md:p-6 shadow-[0_4px_20px_rgba(0,0,0,0.02)] flex flex-col justify-between transition-all duration-300 min-w-0">
+        <!-- Pet Detector Card (Bento Card) -->
+        <section id="pet-card" class="bg-white border border-slate-200 rounded-3xl p-5 md:p-6 shadow-[0_4px_20px_rgba(0,0,0,0.02)] flex flex-col justify-between transition-all duration-300 min-w-0">
           <div class="space-y-4">
-            <span class="text-[10px] font-bold tracking-wider text-slate-400 uppercase">System Status</span>
-            
-            <div class="py-2">
-              <span id="status-display" class="text-2xl font-bold text-slate-900 tracking-tight transition-all duration-200">
-                ACTIVE
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-bold tracking-wider text-slate-400 uppercase">Pet Detector</span>
+              <span id="pet-badge" class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                CLEAR
               </span>
-              <p id="status-message" class="text-xs text-slate-500 mt-1 leading-relaxed">
-                Dispenser is active. Commands can be issued via voice or text.
+            </div>
+            
+            <div class="text-center py-4 flex flex-col items-center justify-center">
+              <div class="inline-flex p-4 rounded-full bg-slate-50 border border-slate-100 shadow-sm mb-2">
+                <i id="pet-icon" class="fas fa-bowl-food text-slate-400 text-4xl md:text-5xl transition-all duration-300"></i>
+              </div>
+              <p id="pet-text" class="text-[11px] text-slate-500 max-w-[200px] mx-auto leading-relaxed font-medium">
+                Bowl area is empty. No pet detected.
               </p>
             </div>
-          </div>
-
-          <!-- Modern Switch Toggle Button -->
-          <div class="flex items-center justify-between border-t border-slate-100 pt-4 mt-4">
-            <span class="text-xs font-semibold text-slate-600">Dispenser Lock</span>
-            <button onclick="toggleLockState()" id="lock-switch" class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none bg-slate-200" role="switch" aria-checked="false">
-              <span id="lock-switch-thumb" class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out translate-x-0"></span>
-            </button>
           </div>
         </section>
 
@@ -171,6 +168,14 @@
                 <i class="fas fa-chevron-right text-[10px] text-slate-400"></i>
               </button>
             </div>
+
+            <!-- Modern Switch Toggle Button -->
+            <div class="flex items-center justify-between border-t border-slate-100 pt-4 mt-6">
+              <span class="text-xs font-semibold text-slate-600">Dispenser Lock</span>
+              <button onclick="toggleLockState()" id="lock-switch" class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none bg-slate-200" role="switch" aria-checked="false">
+                <span id="lock-switch-thumb" class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out translate-x-0"></span>
+              </button>
+            </div>
           </div>
           
           <button onclick="triggerQuickCommand('help')" class="w-full mt-4 py-2 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 font-semibold text-[10px] md:text-xs transition-colors duration-200 border border-slate-200 flex items-center justify-center space-x-1.5">
@@ -188,6 +193,7 @@
         <div id="console-header" class="px-6 py-4 bg-white border-b border-slate-150 flex items-center justify-between flex-shrink-0 transition-colors duration-300">
           <div class="flex items-center space-x-2.5">
             <span class="text-xs font-bold text-slate-900 uppercase tracking-wider">Console Logs</span>
+            <span id="header-lock-badge" class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 ml-2">ACTIVE</span>
           </div>
           <div id="mic-status" class="text-[10px] text-slate-400 flex items-center font-bold uppercase tracking-wider">
             <i class="fas fa-circle text-green-500 text-[7px] mr-1.5"></i> Ready
@@ -293,8 +299,9 @@
     // Initialize application on DOM load
     document.addEventListener('DOMContentLoaded', () => {
       updateLockUI();
+      checkPetStatus();
       // Show welcome instructions
-      addMessage('system', 'Welcome to Zoomie Dispenser Chat Panel! Type a command below or click the microphone to speak. Say <strong>"help"</strong> to view available commands.');
+      addMessage('system', 'Hi there! I\'m Zoomie\'s feed bot. 🐾 Type a command below or click the microphone to speak. Try saying <strong>"help"</strong> to see what I can do!');
     });
 
     // Toggle speech engine
@@ -362,8 +369,7 @@
     function updateLockUI() {
       const switchBtn = document.getElementById('lock-switch');
       const switchThumb = document.getElementById('lock-switch-thumb');
-      const statusDisplay = document.getElementById('status-display');
-      const statusMessage = document.getElementById('status-message');
+      const headerLockBadge = document.getElementById('header-lock-badge');
 
       if (isLocked) {
         switchBtn.classList.remove('bg-slate-200');
@@ -372,9 +378,8 @@
         switchThumb.classList.add('translate-x-5');
         switchBtn.setAttribute('aria-checked', 'true');
 
-        statusDisplay.innerText = 'LOCKED';
-        statusDisplay.className = 'text-2xl font-bold text-red-600 tracking-tight';
-        statusMessage.innerText = 'Dispenser is locked. Command actions are disabled.';
+        headerLockBadge.innerText = 'LOCKED';
+        headerLockBadge.className = 'px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-100 text-red-700 border border-red-200 ml-2';
       } else {
         switchBtn.classList.remove('bg-red-500');
         switchBtn.classList.add('bg-slate-200');
@@ -382,11 +387,63 @@
         switchThumb.classList.add('translate-x-0');
         switchBtn.setAttribute('aria-checked', 'false');
 
-        statusDisplay.innerText = 'ACTIVE';
-        statusDisplay.className = 'text-2xl font-bold text-slate-900 tracking-tight';
-        statusMessage.innerText = 'Dispenser is active. Commands can be issued via voice or text.';
+        headerLockBadge.innerText = 'ACTIVE';
+        headerLockBadge.className = 'px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200 ml-2';
       }
     }
+
+    // Update Pet Proximity Indicator Card
+    function updatePetStatusUI(petDetected) {
+      const petCard = document.getElementById('pet-card');
+      const petBadge = document.getElementById('pet-badge');
+      const petIcon = document.getElementById('pet-icon');
+      const petText = document.getElementById('pet-text');
+
+      if (petDetected) {
+        petCard.className = "bg-gradient-to-br from-blue-50 to-indigo-50/40 border border-blue-200 rounded-3xl p-5 md:p-6 shadow-[0_4px_20px_rgba(0,0,0,0.02)] flex flex-col justify-between transition-all duration-300 min-w-0";
+        petBadge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-300 animate-pulse';
+        petBadge.innerText = 'PET DETECTED';
+        petIcon.className = 'fas fa-dog text-blue-600 text-4xl md:text-5xl transition-all duration-300 transform scale-110';
+        petText.innerText = 'Zoomie is at the bowl! 🐕🍲 Ready to eat.';
+      } else {
+        petCard.className = "bg-white border border-slate-200 rounded-3xl p-5 md:p-6 shadow-[0_4px_20px_rgba(0,0,0,0.02)] flex flex-col justify-between transition-all duration-300 min-w-0";
+        petBadge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200';
+        petBadge.innerText = 'CLEAR';
+        petIcon.className = 'fas fa-bowl-food text-slate-400 text-4xl md:text-5xl transition-all duration-300 transform scale-100';
+        petText.innerText = 'Bowl area is empty. No pet detected.';
+      }
+    }
+
+    // Poll Supabase for the latest pet detector reading
+    async function checkPetStatus() {
+      // Don't poll if credentials are not configured or are placeholders
+      const isDefaultUrl = !SUPABASE_URL || SUPABASE_URL.includes('your-supabase-url') || SUPABASE_URL === 'YOUR_SUPABASE_URL';
+      const isDefaultKey = !SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes('your-supabase-anon-key') || SUPABASE_ANON_KEY === 'YOUR_SUPABASE_ANON_KEY';
+      if (isDefaultUrl || isDefaultKey) return;
+
+      try {
+        if (!supabaseClientInstance) {
+          supabaseClientInstance = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        }
+
+        const { data, error } = await supabaseClientInstance
+          .from('pet_status')
+          .select('pet_detected')
+          .order('id', { ascending: false })
+          .limit(1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          updatePetStatusUI(data[0].pet_detected);
+        }
+      } catch (err) {
+        console.error('Failed to query pet status from Supabase:', err);
+      }
+    }
+
+    // Set polling interval for pet detection updates (every 3 seconds)
+    setInterval(checkPetStatus, 3000);
 
     // Add chat node to window
     function addMessage(sender, text) {
@@ -446,7 +503,7 @@
 
       // 1. HELP command
       if (cleanCmd === 'help') {
-        addMessage('system', 'Available commands:<br>• <strong class="text-slate-900">dispense</strong> - Dispatch a regular pet feeding<br>• <strong class="text-slate-900">snack</strong> - Drop a quick snack treat<br>• <strong class="text-slate-900">lock</strong> - Disable dispenser operation<br>• <strong class="text-slate-900">unlock</strong> - Enable dispenser operation');
+        addMessage('system', 'Here is how I can help:<br>• <strong>dispense</strong> — Serve a full meal 🍲<br>• <strong>snack</strong> — Drop a little treat 🍖<br>• <strong>lock</strong> — Lock the dispenser safety switch 🔒<br>• <strong>unlock</strong> — Unlock the dispenser for feeding 🔓');
       }
       
       // 2. LOCK command
@@ -460,7 +517,7 @@
           confirmButtonColor: '#0f172a',
           timer: 2000
         });
-        addMessage('system', 'System locked.');
+        addMessage('system', 'Dispenser locked. Zoomie won\'t be able to sneak any extra food! 🔒');
       }
       
       // 3. UNLOCK command
@@ -474,7 +531,7 @@
           confirmButtonColor: '#0f172a',
           timer: 2000
         });
-        addMessage('system', 'System unlocked.');
+        addMessage('system', 'Dispenser unlocked and ready to feed! 🔓');
       }
       
       // 4. ACTION commands
@@ -486,7 +543,7 @@
             text: 'Action blocked! The dispenser is locked.',
             confirmButtonColor: '#dc2626'
           });
-          addMessage('system', `<span class="text-red-500 font-bold">Blocked:</span> Dispenser is currently locked. Unable to process command: <strong>${cleanCmd}</strong>.`);
+          addMessage('system', 'Feeding blocked: The dispenser is locked! Please slide the safety switch to unlock first. 🔒');
         } else {
           await sendCommandToSupabase(cleanCmd);
         }
@@ -494,13 +551,14 @@
       
       // 5. UNRECOGNIZED command
       else {
-        addMessage('system', `Command <strong>"${cmd}"</strong> not recognized. Say <strong>"help"</strong> to show valid options.`);
+        addMessage('system', `Sorry, I didn't understand <strong>"${cmd}"</strong>. Say <strong>"help"</strong> to see valid options.`);
       }
     }
 
     // Submit Action to Supabase Realtime Database
     async function sendCommandToSupabase(commandString) {
-      addMessage('system', `Sending command <strong>"${commandString}"</strong> to Supabase...`);
+      const statusMsg = commandString === 'dispense' ? 'Preparing a delicious meal... 🍲' : 'Dropping a tasty treat... 🍖';
+      addMessage('system', statusMsg);
 
       // Verify that URL and Key are not original mock strings
       const isDefaultUrl = !SUPABASE_URL || SUPABASE_URL.includes('your-supabase-url') || SUPABASE_URL === 'YOUR_SUPABASE_URL';
@@ -509,7 +567,8 @@
       if (isDefaultUrl || isDefaultKey) {
         // Mock success message with validation warning for testing
         setTimeout(() => {
-          addMessage('system', `<span class="text-amber-600 font-bold">Warning:</span> Command <strong>"${commandString}"</strong> processed, but DB write was skipped (using placeholder credentials).`);
+          const mockMsg = commandString === 'dispense' ? 'Meal successfully dispensed! (Offline Mode) 🍲' : 'Snack successfully dispensed! Enjoy your treat, Zoomie! (Offline Mode) 🍖';
+          addMessage('system', mockMsg);
         }, 1000);
         return;
       }
@@ -527,11 +586,12 @@
 
         if (error) throw error;
 
-        addMessage('system', `Success: Transmitted command <strong>"${commandString}"</strong> to dispenser database.`);
+        const successMsg = commandString === 'dispense' ? 'Meal successfully dispensed! Enjoy your food, Zoomie! 🍲' : 'Snack successfully dispensed! Enjoy your treat, Zoomie! 🍖';
+        addMessage('system', successMsg);
 
       } catch (err) {
         console.error('Supabase integration error:', err);
-        addMessage('system', `<span class="text-red-500 font-bold">Error:</span> Database transaction failed for <strong>"${commandString}"</strong>: ${err.message || err}`);
+        addMessage('system', `<span class="text-red-500 font-bold">Oops!</span> I couldn't connect to the dispenser. Please check your network connection.`);
       }
     }
   </script>
