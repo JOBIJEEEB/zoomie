@@ -151,21 +151,21 @@
             
             <div class="space-y-3">
               <!-- Dispense Hero Action -->
-              <button onclick="triggerQuickCommand('dispense')" class="w-full flex items-center justify-between py-3.5 px-4 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-medium transition-all duration-200 shadow-sm active:scale-[0.98]">
+              <button onclick="triggerQuickCommand('dispense')" class="w-full flex items-center justify-between py-3.5 px-4 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-medium transition-all duration-200 shadow-sm active:scale-[0.98]">
                 <div class="flex items-center space-x-3">
-                  <i class="fas fa-utensils text-sm text-slate-300"></i>
+                  <i class="fas fa-utensils text-sm text-purple-200"></i>
                   <span class="text-xs font-semibold">Dispense Food</span>
                 </div>
-                <i class="fas fa-chevron-right text-[10px] text-slate-400"></i>
+                <i class="fas fa-chevron-right text-[10px] text-purple-300"></i>
               </button>
 
               <!-- Snack Action -->
-              <button onclick="triggerQuickCommand('snack')" class="w-full flex items-center justify-between py-3.5 px-4 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 font-medium transition-all duration-200 shadow-[0_2px_8px_rgba(0,0,0,0.02)] active:scale-[0.98]">
+              <button onclick="triggerQuickCommand('snack')" class="w-full flex items-center justify-between py-3.5 px-4 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-medium transition-all duration-200 shadow-sm active:scale-[0.98]">
                 <div class="flex items-center space-x-3">
-                  <i class="fas fa-cookie-bite text-sm text-slate-500"></i>
+                  <i class="fas fa-cookie-bite text-sm text-orange-200"></i>
                   <span class="text-xs font-semibold">Feed Snack</span>
                 </div>
-                <i class="fas fa-chevron-right text-[10px] text-slate-400"></i>
+                <i class="fas fa-chevron-right text-[10px] text-orange-300"></i>
               </button>
             </div>
 
@@ -445,6 +445,33 @@
     // Set polling interval for pet detection updates (every 3 seconds)
     setInterval(checkPetStatus, 3000);
 
+    // Text-to-Speech voice synthesis helper
+    function speak(text) {
+      if ('speechSynthesis' in window) {
+        // Strip HTML tags and emojis from the response text for clean speech
+        const cleanText = text.replace(/<[^>]*>/g, '').replace(/🐾|🍲|🍖|🔒|🔓|🐕/g, '');
+        
+        // Stop any ongoing speech synthesis to prevent overlapping voices
+        window.speechSynthesis.cancel();
+        
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        utterance.rate = 1.0;  // Natural reading rate
+        utterance.pitch = 1.1; // Slightly higher friendly pitch
+        
+        // Select a natural-sounding English voice if available
+        const voices = window.speechSynthesis.getVoices();
+        const preferredVoice = voices.find(v => 
+          v.lang.startsWith('en') && 
+          (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Zira') || v.name.includes('David'))
+        );
+        if (preferredVoice) {
+          utterance.voice = preferredVoice;
+        }
+        
+        window.speechSynthesis.speak(utterance);
+      }
+    }
+
     // Add chat node to window
     function addMessage(sender, text) {
       const chatMessages = document.getElementById('chat-messages');
@@ -469,6 +496,11 @@
 
       // Auto scroll to bottom
       chatMessages.scrollTop = chatMessages.scrollHeight;
+
+      // Speak system responses aloud
+      if (sender === 'system') {
+        speak(text);
+      }
     }
 
     // Parse input from Quick Buttons
